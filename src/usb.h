@@ -2,13 +2,13 @@
 #include <Arduino.h>
 
 // USB-C PD target configuration for STUSB4500
-// NOTE: The SBB A802 slave clock is spec'd for 24 V; USB-PD via STUSB4500
-// is limited to 20 V.  20 V works in practice with SBB impulse clocks.
-#define USB_PD2_VOLTAGE  20.0f  // PDO 2 voltage (V)
+// NOTE: TB6612 VM absolute maximum is 15 V — do not exceed 13.5 V operating.
+// 12 V is well within spec and sufficient for the SBB A802 slave clock coil.
+#define USB_PD2_VOLTAGE  12.0f  // PDO 2 voltage (V)
 #define USB_PD2_CURRENT   2.0f  // PDO 2 current (A)
-#define USB_PD3_VOLTAGE  20.0f  // PDO 3 voltage (V) — highest priority
+#define USB_PD3_VOLTAGE  12.0f  // PDO 3 voltage (V) — highest priority
 #define USB_PD3_CURRENT   3.0f  // PDO 3 current (A)
-#define USB_PD_MIN_READY 18.0f  // minimum voltage (V) considered "ready"
+#define USB_PD_MIN_READY 10.0f  // minimum voltage (V) considered "ready"
 
 // Initialise the STUSB4500 and negotiate the target PD contract.
 void USB_config();

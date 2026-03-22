@@ -5,33 +5,55 @@
 #include "buzzer.h"
 #include "network_manager.h"
 
-// ── Slave-clock output ────────────────────────────────────────────────────────
-// GPIO driving the MOSFET / relay that switches 20 V to the SBB A802.
-// The A802 is spec'd for 24 V alternating-polarity impulses; 20 V (USB-PD max)
-// works in practice.  True alternating polarity requires an H-bridge with a
-// second GPIO — see polarityState below for the tracking variable.
-#define SLAVE_CLOCK_PIN      12
-#define SLAVE_CLOCK_PULSE_MS 500  // 100 ms — standard SBB impulse width
+// ── Slave-clock output — TB6612 H-bridge ─────────────────────────────────────
+// TB6612 drives the SBB A802 slave clock coil with alternating-polarity 20 V
+// impulses.  Polarity flips every minute as the A802 spec requires.
+//   AIN1  AIN2  PWM   → motor action
+//   HIGH  LOW   HIGH  → +20 V (forward)
+//   LOW   HIGH  HIGH  → −20 V (reverse)
+//   x     x     LOW   → coast (off)
+#define MOT_PWM          5
+#define MOT_AIN1        14
+#define MOT_AIN2        19
+#define MOT_STBY        26
+#define SLAVE_CLOCK_PULSE_MS 200  // 100 ms — standard SBB impulse width
 
-static int  lastSecond    = -1;
-static bool polarityState = false;  // flips every minute; use for H-bridge direction
+// Set to 60 for production (one pulse per minute = one step per minute).
+// Reduce for testing, e.g. 5 = pulse every 5 seconds.
+static const int PULSE_INTERVAL_S = 10;
+
+static unsigned long lastFireMs   = 0;
+static bool polarityState = false;  // false = +pulse, true = −pulse
 
 static void fireSlaveClock()
 {
-    // TODO: for full A802 compliance add a second GPIO + H-bridge so the
-    // polarity alternates every minute (polarityState already tracks it).
-    digitalWrite(SLAVE_CLOCK_PIN, HIGH);
-    delay(SLAVE_CLOCK_PULSE_MS);
-    digitalWrite(SLAVE_CLOCK_PIN, LOW);
+    // Set H-bridge direction before enabling PWM
+    if (polarityState)
+    {
+        digitalWrite(MOT_AIN1, LOW);
+        digitalWrite(MOT_AIN2, HIGH);
+    }
+    else
+    {
+        digitalWrite(MOT_AIN1, HIGH);
+        digitalWrite(MOT_AIN2, LOW);
+    }
 
-    polarityState = !polarityState;
+    digitalWrite(MOT_PWM, HIGH);
+    delay(SLAVE_CLOCK_PULSE_MS);
+    digitalWrite(MOT_PWM, LOW);   // coast — coil de-energised
+    digitalWrite(MOT_AIN1, LOW);
+    digitalWrite(MOT_AIN2, LOW);
+
     buzzer.click(BUZZER_DURATION, 1);  // single tick = clock pulse sent
 
     Serial.printf("[SlaveClk] %02d:%02d — pulse fired (%d ms, polarity: %s)\n",
                   networkManager.currentHour,
                   networkManager.currentMinute,
                   SLAVE_CLOCK_PULSE_MS,
-                  polarityState ? "+" : "-");
+                  polarityState ? "-" : "+");
+
+    polarityState = !polarityState;
 }
 
 // ── Arduino entry points ──────────────────────────────────────────────────────
@@ -47,8 +69,14 @@ void setup()
     delay(2000);  // pause so serial monitor can connect before output begins
     Serial.println("\n[Boot] Nebenuhr starting...");
 
-    pinMode(SLAVE_CLOCK_PIN, OUTPUT);
-    digitalWrite(SLAVE_CLOCK_PIN, LOW);
+    pinMode(MOT_PWM,  OUTPUT);
+    pinMode(MOT_AIN1, OUTPUT);
+    pinMode(MOT_AIN2, OUTPUT);
+    pinMode(MOT_STBY, OUTPUT);
+    digitalWrite(MOT_PWM,  LOW);
+    digitalWrite(MOT_AIN1, LOW);
+    digitalWrite(MOT_AIN2, LOW);
+    digitalWrite(MOT_STBY, HIGH);  // enable TB6612
 
     delay(5000);  // wait for power to stabilize before checking USB voltage
     buzzer.click(BUZZER_DURATION, 2);  // two short beeps = boot
@@ -84,12 +112,10 @@ void loop()
 {
     networkManager.loop();
 
-    // Detect the leading edge of second == 0 (minute rollover).
-    // networkManager keeps currentSecond in sync with NTP.
-    int sec = networkManager.currentSecond;
-
-    if (sec == 0 && lastSecond != 0)
+    unsigned long now = millis();
+    if (now - lastFireMs >= (unsigned long)PULSE_INTERVAL_S * 1000UL)
     {
+        lastFireMs = now;
         if (USB_isVoltageReady())
         {
             fireSlaveClock();
@@ -101,6 +127,4 @@ void loop()
                           networkManager.currentMinute);
         }
     }
-
-    lastSecond = sec;
 }
