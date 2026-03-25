@@ -29,6 +29,15 @@ static void ledBlink(int count)
 #define MOT_R_EN   27   // GPIO27 → BTS7960 R_EN
 #define MOT_L_EN   14   // GPIO14 → BTS7960 L_EN
 
+// ── Adjustment buttons ────────────────────────────────────────────────────────
+// Button A (GPIO32): fast-forward while held (1 pulse per 400 ms)
+// Button B (GPIO33): go back 1 hour (fires 23x60 = 1380 rapid pulses)
+// Wiring: one leg to GPIO, other leg to GND. Internal pull-up used.
+#define BTN_A  32
+#define BTN_B  33
+
+#define FAST_FORWARD_INTERVAL_MS 400  // gap between rapid pulses (safe minimum)
+
 #define SLAVE_CLOCK_PULSE_MS 200  // 200 ms impulse width (standard Nebenuhr)
 
 // Pulse interval in seconds. Change via serial: type a number and press Enter.
@@ -66,6 +75,61 @@ static void handleSerial()
         else
         {
             buf += c;
+        }
+    }
+}
+
+static void fireRapidPulse()
+{
+    // Same as fireSlaveClock() but no LED blink and shorter log — used for fast-forward
+    if (polarityState)
+    {
+        digitalWrite(MOT_RPWM, LOW);
+        digitalWrite(MOT_LPWM, HIGH);
+    }
+    else
+    {
+        digitalWrite(MOT_RPWM, HIGH);
+        digitalWrite(MOT_LPWM, LOW);
+    }
+    delay(SLAVE_CLOCK_PULSE_MS);
+    digitalWrite(MOT_RPWM, LOW);
+    digitalWrite(MOT_LPWM, LOW);
+    delay(FAST_FORWARD_INTERVAL_MS - SLAVE_CLOCK_PULSE_MS);  // gap between pulses
+    polarityState = !polarityState;
+}
+
+static void handleButtons()
+{
+    // Button A — fast-forward while held
+    if (digitalRead(BTN_A) == LOW)
+    {
+        Serial.println("[Btn] A held - fast-forward");
+        int steps = 0;
+        while (digitalRead(BTN_A) == LOW)
+        {
+            fireRapidPulse();
+            steps++;
+        }
+        Serial.printf("[Btn] A released - forwarded %d steps\n", steps);
+        lastFireMs = millis();  // prevent normal firing immediately after
+    }
+
+    // Button B — go back 1 hour (forward 23 hours = 23x60 steps)
+    if (digitalRead(BTN_B) == LOW)
+    {
+        delay(50);  // debounce
+        if (digitalRead(BTN_B) == LOW)
+        {
+            Serial.println("[Btn] B pressed - stepping back 1 hour (23x60 = 1380 pulses)");
+            for (int i = 0; i < 23 * 60; i++)
+            {
+                fireRapidPulse();
+                if (i % 60 == 0)
+                    Serial.printf("[Btn] Back 1h progress: %d/23 hours\n", i / 60);
+            }
+            Serial.println("[Btn] Back 1 hour done");
+            lastFireMs = millis();
         }
     }
 }
@@ -127,6 +191,9 @@ void setup()
     digitalWrite(MOT_R_EN, HIGH);   // enable right half-bridge
     digitalWrite(MOT_L_EN, HIGH);   // enable left half-bridge
 
+    pinMode(BTN_A, INPUT_PULLUP);
+    pinMode(BTN_B, INPUT_PULLUP);
+
     ledBlink(2);  // 2 blinks = boot OK
 
     networkManager.begin();
@@ -136,6 +203,7 @@ void setup()
 void loop()
 {
     handleSerial();
+    handleButtons();
     networkManager.loop();
 
     unsigned long now = millis();
