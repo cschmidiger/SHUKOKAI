@@ -1,51 +1,64 @@
 #include <Arduino.h>
-#include <Wire.h>
 #include "soc/rtc_cntl_reg.h"  // for brownout disable
-#include "usb.h"
-#include "buzzer.h"
 #include "network_manager.h"
 
-// ── Slave-clock output — TB6612 H-bridge ─────────────────────────────────────
-// TB6612 drives the SBB A802 slave clock coil with alternating-polarity 20 V
-// impulses.  Polarity flips every minute as the A802 spec requires.
-//   AIN1  AIN2  PWM   → motor action
-//   HIGH  LOW   HIGH  → +20 V (forward)
-//   LOW   HIGH  HIGH  → −20 V (reverse)
-//   x     x     LOW   → coast (off)
-#define MOT_PWM          5
-#define MOT_AIN1        14
-#define MOT_AIN2        19
-#define MOT_STBY        26
-#define SLAVE_CLOCK_PULSE_MS 200  // 100 ms — standard SBB impulse width
+#define LED_BUILTIN_PIN 2
+
+static void ledBlink(int count)
+{
+    for (int i = 0; i < count; i++)
+    {
+        digitalWrite(LED_BUILTIN_PIN, HIGH);
+        delay(150);
+        digitalWrite(LED_BUILTIN_PIN, LOW);
+        delay(150);
+    }
+}
+
+// ── Slave-clock output — BTS7960 43A H-bridge ────────────────────────────────
+// The BTS7960 drives the slave clock coil with alternating-polarity impulses.
+// Polarity flips every minute as the SBB/Nebenuhr spec requires.
+//
+//   RPWM HIGH, LPWM LOW  → +24 V on M+ (forward)
+//   RPWM LOW,  LPWM HIGH → −24 V on M+ (reverse)
+//   RPWM LOW,  LPWM LOW  → coil off (coast)
+//
+// R_EN and L_EN must be HIGH to enable the bridge.
+#define MOT_RPWM   25   // GPIO25 → BTS7960 RPWM
+#define MOT_LPWM   26   // GPIO26 → BTS7960 LPWM
+#define MOT_R_EN   27   // GPIO27 → BTS7960 R_EN
+#define MOT_L_EN   14   // GPIO14 → BTS7960 L_EN
+
+#define SLAVE_CLOCK_PULSE_MS 200  // 200 ms impulse width (standard Nebenuhr)
 
 // Set to 60 for production (one pulse per minute = one step per minute).
 // Reduce for testing, e.g. 5 = pulse every 5 seconds.
-static const int PULSE_INTERVAL_S = 10;
+static const int PULSE_INTERVAL_S = 60;
 
-static unsigned long lastFireMs   = 0;
+static unsigned long lastFireMs = 0;
 static bool polarityState = false;  // false = +pulse, true = −pulse
 
 static void fireSlaveClock()
 {
-    // Set H-bridge direction before enabling PWM
+    // Apply direction
     if (polarityState)
     {
-        digitalWrite(MOT_AIN1, LOW);
-        digitalWrite(MOT_AIN2, HIGH);
+        digitalWrite(MOT_RPWM, LOW);
+        digitalWrite(MOT_LPWM, HIGH);
     }
     else
     {
-        digitalWrite(MOT_AIN1, HIGH);
-        digitalWrite(MOT_AIN2, LOW);
+        digitalWrite(MOT_RPWM, HIGH);
+        digitalWrite(MOT_LPWM, LOW);
     }
 
-    digitalWrite(MOT_PWM, HIGH);
     delay(SLAVE_CLOCK_PULSE_MS);
-    digitalWrite(MOT_PWM, LOW);   // coast — coil de-energised
-    digitalWrite(MOT_AIN1, LOW);
-    digitalWrite(MOT_AIN2, LOW);
 
-    buzzer.click(BUZZER_DURATION, 1);  // single tick = clock pulse sent
+    // De-energise coil
+    digitalWrite(MOT_RPWM, LOW);
+    digitalWrite(MOT_LPWM, LOW);
+
+    ledBlink(1);  // 1 blink = clock pulse sent
 
     Serial.printf("[SlaveClk] %02d:%02d — pulse fired (%d ms, polarity: %s)\n",
                   networkManager.currentHour,
@@ -60,52 +73,31 @@ static void fireSlaveClock()
 
 void setup()
 {
-    // Disable brownout detector — WiFi radio draws ~300 mA peaks which dips
-    // the 3.3V rail below the default threshold. Hardware fix: add 100-470 uF
-    // bulk cap on 3.3V rail close to the ESP32.
+    // Disable brownout detector — WiFi radio draws ~300 mA peaks
     REG_WRITE(RTC_CNTL_BROWN_OUT_REG, 0);
 
     Serial.begin(115200);
-    delay(2000);  // pause so serial monitor can connect before output begins
+    delay(5000);  // give time to open serial monitor
     Serial.println("\n[Boot] Nebenuhr starting...");
 
-    pinMode(MOT_PWM,  OUTPUT);
-    pinMode(MOT_AIN1, OUTPUT);
-    pinMode(MOT_AIN2, OUTPUT);
-    pinMode(MOT_STBY, OUTPUT);
-    digitalWrite(MOT_PWM,  LOW);
-    digitalWrite(MOT_AIN1, LOW);
-    digitalWrite(MOT_AIN2, LOW);
-    digitalWrite(MOT_STBY, HIGH);  // enable TB6612
+    pinMode(LED_BUILTIN_PIN, OUTPUT);
+    digitalWrite(LED_BUILTIN_PIN, LOW);
 
-    delay(5000);  // wait for power to stabilize before checking USB voltage
-    buzzer.click(BUZZER_DURATION, 2);  // two short beeps = boot
+    // BTS7960 control pins
+    pinMode(MOT_RPWM, OUTPUT);
+    pinMode(MOT_LPWM, OUTPUT);
+    pinMode(MOT_R_EN, OUTPUT);
+    pinMode(MOT_L_EN, OUTPUT);
 
-    // ── I2C scan (diagnostic — remove once STUSB4500 is confirmed working) ──
-    Wire.begin(21, 22);  // SDA, SCL — adjust if your PCB uses different pins
-    Serial.println("[I2C] Scanning bus...");
-    bool found = false;
-    for (uint8_t addr = 1; addr < 127; addr++)
-    {
-        Wire.beginTransmission(addr);
-        if (Wire.endTransmission() == 0)
-        {
-            Serial.printf("[I2C] Device at 0x%02X%s\n", addr,
-                          addr == 0x28 ? "  <-- STUSB4500" : "");
-            found = true;
-        }
-    }
-    if (!found) Serial.println("[I2C] No devices found");
+    digitalWrite(MOT_RPWM, LOW);
+    digitalWrite(MOT_LPWM, LOW);
+    digitalWrite(MOT_R_EN, HIGH);   // enable right half-bridge
+    digitalWrite(MOT_L_EN, HIGH);   // enable left half-bridge
 
-    USB_config();
-
-    if (USB_isVoltageReady())
-        buzzer.click(BUZZER_DURATION, 1);   // single beep = USB voltage OK
-    else
-        buzzer.alarm();        // alarm pattern = USB voltage not ready
+    ledBlink(2);  // 2 blinks = boot OK
 
     networkManager.begin();
-    buzzer.click(BUZZER_DURATION, 3);  // three beeps = WiFi + NTP done
+    ledBlink(3);  // 3 blinks = WiFi + NTP done
 }
 
 void loop()
@@ -116,15 +108,6 @@ void loop()
     if (now - lastFireMs >= (unsigned long)PULSE_INTERVAL_S * 1000UL)
     {
         lastFireMs = now;
-        if (USB_isVoltageReady())
-        {
-            fireSlaveClock();
-        }
-        else
-        {
-            Serial.printf("[SlaveClk] %02d:%02d — skipped (USB voltage not ready)\n",
-                          networkManager.currentHour,
-                          networkManager.currentMinute);
-        }
+        fireSlaveClock();
     }
 }
