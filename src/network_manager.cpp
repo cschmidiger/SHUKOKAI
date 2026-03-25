@@ -22,7 +22,7 @@ void NetworkManager::begin()
 
     if (!connectWiFi())
     {
-        Serial.println("[Net] No WiFi — running on internal clock");
+        Serial.println("[Net] No WiFi - running on internal clock");
         currentHour = 12; currentMinute = 0; currentSecond = 0;
         lastMillis = millis();
         return;
@@ -44,7 +44,7 @@ void NetworkManager::begin()
     }
     else
     {
-        Serial.println("[NTP] Failed — using 12:00:00");
+        Serial.println("[NTP] Failed - using 12:00:00");
         currentHour = 12; currentMinute = 0; currentSecond = 0;
     }
 
@@ -70,7 +70,7 @@ void NetworkManager::loop()
         if (WiFi.isConnected())
             syncNTP();
         else
-            Serial.println("[NTP] No WiFi — skipping sync");
+            Serial.println("[NTP] No WiFi - skipping sync");
     }
 }
 
@@ -83,7 +83,7 @@ bool NetworkManager::connectWiFi()
 
     if (ssid.length() == 0)
     {
-        Serial.println("[Net] No credentials stored — starting config portal");
+        Serial.println("[Net] No credentials stored - starting config portal");
         startConfigPortal(); // never returns, restarts after save
         return false;
     }
@@ -102,7 +102,7 @@ bool NetworkManager::connectWiFi()
 
     if (WiFi.status() != WL_CONNECTED)
     {
-        Serial.println("[Net] Connection failed — starting config portal");
+        Serial.println("[Net] Connection failed - starting config portal");
         startConfigPortal(); // never returns, restarts after save
         return false;
     }
@@ -158,7 +158,7 @@ void NetworkManager::startConfigPortal()
 
     Serial.println("[Net] Starting server...");
     server.begin();
-    Serial.println("[Net] Portal ready — connect to 'Nebenuhr', open http://192.168.4.1");
+    Serial.println("[Net] Portal ready - connect to 'Nebenuhr', open http://192.168.4.1");
 
     while (true)
     {
@@ -182,7 +182,7 @@ void NetworkManager::syncNTP()
     }
     else
     {
-        Serial.println("[NTP] Sync failed — keeping last time");
+        Serial.println("[NTP] Sync failed - keeping last time");
     }
 }
 

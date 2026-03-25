@@ -31,12 +31,44 @@ static void ledBlink(int count)
 
 #define SLAVE_CLOCK_PULSE_MS 200  // 200 ms impulse width (standard Nebenuhr)
 
-// Set to 60 for production (one pulse per minute = one step per minute).
-// Reduce for testing, e.g. 5 = pulse every 5 seconds.
-static const int PULSE_INTERVAL_S = 60;
+// Pulse interval in seconds. Change via serial: type a number and press Enter.
+// 60 = production (one step per minute). Use smaller values for testing.
+int pulseIntervalS = 10;
 
 static unsigned long lastFireMs = 0;
-static bool polarityState = false;  // false = +pulse, true = −pulse
+static bool polarityState = false;  // false = +pulse, true = -pulse
+
+static void handleSerial()
+{
+    static String buf;
+    while (Serial.available())
+    {
+        char c = Serial.read();
+        if (c == '\n' || c == '\r')
+        {
+            buf.trim();
+            if (buf.length() > 0)
+            {
+                int val = buf.toInt();
+                if (val > 0)
+                {
+                    pulseIntervalS = val;
+                    lastFireMs = millis();  // reset timer so change takes effect immediately
+                    Serial.printf("[Config] Pulse interval set to %d s\n", pulseIntervalS);
+                }
+                else
+                {
+                    Serial.println("[Config] Invalid value — enter a positive integer (seconds)");
+                }
+            }
+            buf = "";
+        }
+        else
+        {
+            buf += c;
+        }
+    }
+}
 
 static void fireSlaveClock()
 {
@@ -60,11 +92,12 @@ static void fireSlaveClock()
 
     ledBlink(1);  // 1 blink = clock pulse sent
 
-    Serial.printf("[SlaveClk] %02d:%02d — pulse fired (%d ms, polarity: %s)\n",
+    Serial.printf("[SlaveClk] %02d:%02d - pulse fired (%d ms, polarity: %s, interval: %ds)\n",
                   networkManager.currentHour,
                   networkManager.currentMinute,
                   SLAVE_CLOCK_PULSE_MS,
-                  polarityState ? "-" : "+");
+                  polarityState ? "-" : "+",
+                  pulseIntervalS);
 
     polarityState = !polarityState;
 }
@@ -102,10 +135,11 @@ void setup()
 
 void loop()
 {
+    handleSerial();
     networkManager.loop();
 
     unsigned long now = millis();
-    if (now - lastFireMs >= (unsigned long)PULSE_INTERVAL_S * 1000UL)
+    if (now - lastFireMs >= (unsigned long)pulseIntervalS * 1000UL)
     {
         lastFireMs = now;
         fireSlaveClock();
