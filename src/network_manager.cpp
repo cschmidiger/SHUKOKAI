@@ -116,7 +116,7 @@ void NetworkManager::startConfigPortal()
     WiFi.mode(WIFI_AP);
     delay(100);
 
-    bool apOk = WiFi.softAP("Nebenuhr");
+    bool apOk = WiFi.softAP("Shukokai-Uhr");
     Serial.println("[Net] softAP result: " + String(apOk));
     Serial.println("[Net] AP IP: " + WiFi.softAPIP().toString());
 
@@ -125,10 +125,10 @@ void NetworkManager::startConfigPortal()
     Serial.println("[Net] Registering routes...");
 
     const char *html =
-        "<!DOCTYPE html><html><head><title>Nebenuhr Setup</title>"
+        "<!DOCTYPE html><html><head><title>Shukokai-Uhr Setup</title>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'></head>"
         "<body style='font-family:sans-serif;max-width:320px;margin:40px auto'>"
-        "<h2>Nebenuhr WiFi Setup</h2>"
+        "<h2>Shukokai-Uhr WiFi Setup</h2>"
         "<form method='post' action='/save'>"
         "SSID:<br><input name='ssid' type='text' style='width:100%'><br><br>"
         "Password:<br><input name='pass' type='password' style='width:100%'><br><br>"
@@ -158,7 +158,7 @@ void NetworkManager::startConfigPortal()
 
     Serial.println("[Net] Starting server...");
     server.begin();
-    Serial.println("[Net] Portal ready - connect to 'Nebenuhr', open http://192.168.4.1");
+    Serial.println("[Net] Portal ready - connect to 'Shukokai-Uhr', open http://192.168.4.1");
 
     while (true)
     {
