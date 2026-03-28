@@ -40,7 +40,7 @@ static void ledBlink(int count)
 
 // Pulse interval in seconds. Change via serial: type a number and press Enter.
 // 60 = production (one step per minute). Use smaller values for testing.
-int pulseIntervalS = 10;
+int pulseIntervalS = 60;
 
 static unsigned long lastFireMs = 0;
 static bool polarityState = false;  // false = +pulse, true = -pulse

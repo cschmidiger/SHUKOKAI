@@ -13,7 +13,6 @@
                 "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/FS/src",
                 "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                 "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src",
-                "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src",
                 "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/newlib/platform_include",
                 "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include",
                 "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include/esp_additions/freertos",
@@ -233,6 +232,7 @@
                 "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/Update/src",
                 "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                 "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
+                "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src",
                 ""
             ],
             "browse": {
@@ -243,7 +243,6 @@
                     "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/FS/src",
                     "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                     "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src",
-                    "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src",
                     "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/newlib/platform_include",
                     "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include",
                     "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include/esp_additions/freertos",
@@ -463,6 +462,7 @@
                     "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/Update/src",
                     "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                     "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
+                    "C:/Users/Cyril/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src",
                     ""
                 ]
             },
